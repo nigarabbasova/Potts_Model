@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <cstdlib>
+#include <fstream>
 #include <math.h>
 #include <complex>
 using namespace std;
@@ -8,9 +9,10 @@ using namespace std;
 #define PI 3.14159265358979323846
 //k_B = 1;
 const int q = 3; //number of spin states; we have 3: 0, 1 and 2
-const int L = 6; //number of sites; L = N 
-const double T = 2; //temperature in units J 
-//
+const int L = 16; //number of sites; L = N 
+const double T = 0.5; //temperature in units J 
+//changing temperature has to be done manually, a bit hacky but it will have to do for now  
+
 int dim = 1; //dimension of the lattice; 1D chain case
 
 const int N = L; 
@@ -25,20 +27,29 @@ const int Nbins = 10; //number of measurement bins/experiments
 vector<int> Spins(N); //array of spins 
 vector<int> M(q); //number of spins in different states - will be used in flipping the spins 
 vector<complex<double>> W(q); //oder parameter weights 
+vector<complex<double>> m0r(N); //order parameter for each site
+vector<complex<double>> mr(N); //order parameter for each site
+vector<complex<double>> Cr(N); //order parameter for each site
+
 
 //function to initialize the lattice with the spins 
-enum directions {right, left}; //1D chain case
+enum directions {right, left, up, down}; //1D chain case
 int indx(int x) {return x;}; //make an indx on every site 
-int xpos(int i) {return i%L;} 
+int xpos(int i) {return i%L;}
+
+int ypos(int i) {return i / L;}
 
 int Nbr(int i, int dir)
 {
     int x = xpos(i);
+    int y = ypos(i);
 
     switch(dir)
     {
         case ::right: return indx((x+1)%L); //return index of the right neighbour 
         case ::left: return indx((x-1+L)%L); //return index of the left neighbour
+        case ::up: return indx(x, (y+1)%L);
+        case ::down: return indx(i, (y-1 + L)%L);
         default: return -1; //if the direction is not right or left, return -1
     }
 
@@ -54,7 +65,7 @@ void FlipAndBuild_from(int s) //might need to implement temperature as an argume
     M[oldstate]--; //decrease the number of spins in the old state by 1
     M[newstate]++; //increase the number of spins in the new state by 1
 
-    for (int dir = 0; dir < dim * 2; dir++) //loop over all neighbours 
+    for (int dir = 0; dir < 2; dir++) //loop over all neighbours s
     //2 neighbours in 1D case, 4 neighbours in 2D case
         {
             int j = Nbr(s, dir); //get the index of the neighbour
@@ -77,6 +88,8 @@ int main()
     for(int i = 0; i < N; i++)
     {
         Spins[i] = 0; //initialise all spins to be in the 0 state 
+        m0r[i] = 0; //initialise all m0r to be 0
+        mr[i] = 0; //initialise all mr to be 0
     }
 
     for(int s = 1; s < q; s++)
@@ -98,13 +111,28 @@ int main()
         }
     }
 
+    vector<complex<double>> m(Nbins);
+    double m1[Nbins];
+    double m2[Nbins];
+    double m4[Nbins];
+
     //do your measurements
     for(int n = 0; n < Nbins; n++)
     {
-        complex<double> m(0., 0.);
-        double m1 = 0; double m2 = 0; double m4 = 0;
-        complex<double> mjs[N] = {0.};
-        complex<double> m0_conj_mjs[N] = {0.};
+        // vector<double> m1(N, 0.);
+        // vector<double> m2(N,0);
+        // vector<double> m4(0.);
+
+        // complex<double> m(0., 0.);
+        // double m1 = 0; double m2 = 0; double m4 = 0;
+
+
+        complex<double> m0(0., 0.);
+
+        m[n] = 0.0;
+        m1[n] = 0.0;
+        m2[n] = 0.0;
+        m4[n] = 0.0;
 
         for(int t = 0; t < NMCsteps; t++)
         {
@@ -118,51 +146,156 @@ int main()
             {
                 tm += W[s] * double(M[s]); //compute the order parameter
             }
+
             tm/=N; //normalise the order parameter
             double tm1 = abs(tm); //compute the first moment of the order parameter
             double tm2 = tm1 * tm1; //compute the second moment of the order parameter
 
-            m += tm; m1 += tm1; m2 += tm2; m4 += tm2 * tm2; //compute the moments of the order parameter
-        
+            // m += tm; m1 += tm1; m2 += tm2; m4 += tm2 * tm2; //compute the moments of the order parameter
+
+            complex<double> m0conj = conj(W[Spins[0]]); //compute the order parameter for each site
+            m0 += m0conj; //compute the order parameter for each site
+            
             for(int j = 0; j < N; j++)
             {
-                mjs[j] += W[Spins[j]]; //compute the order parameter for each site
+                m0r[j] += m0conj * W[Spins[j]]; //compute the order parameter for each site
+                mr[j] += W[Spins[j]]; //compute the order parameter for each site
             }
 
-            for(int j = 0; j < N; j++)
-            {
-                m0_conj_mjs[j] = conj(mjs[0]) * mjs[j]; //compute the order parameter for each site
-            }
+            m[n]+= tm; m1[n] += tm1, m2[n] += tm2, m4[n] += tm2 * tm2; //compute the magnetic moments
         }
         
-        m/=NMCsteps; m1/=NMCsteps; m2/=NMCsteps; m4/=NMCsteps; //normalise the moments of the order parameter
+        //normalise everything by number of MC steps 
+        m[n]/=NMCsteps; m1[n]/=NMCsteps; m2[n]/=NMCsteps; m4[n]/=NMCsteps; 
+        m0 /= NMCsteps; //normalise the order parameter for each site
+
+        // cout << m << ' ' << m1 << ' ' << m2 << ' ' << m4 << endl ;
 
         for(int j = 0; j < N; j++)
         {
-            mjs[j]/=NMCsteps; //normalise the order parameter for each site
-            m0_conj_mjs[j]/=NMCsteps; //normalise the order parameter for each site
-        }
+            m0r[j] /= NMCsteps;
+            mr[j] /= NMCsteps;
 
-        // complex<double> m0_conj_mean = 0.;
-        //compute the correlation function
-        complex<double> corr[N] = {0.};
+        //print length of m0r for a sanity check
+        // cout << m0r.size() << endl;
+
+        //compute the correlation function: i think that this is computing the 'experimental' average 
         for(int j = 0; j < N; j++)
         {
-            corr[j] = m0_conj_mjs[j] - conj(mjs[0]) * mjs[j];
+            Cr[j] += m0r[j] - m0 * mr[j]; //do not understand why there is a summation here: it could be for the experimental average 
         }
 
-        //print correlation function
-        for(int j = 0; j < N; j++)
-        {
-            cout << corr[j];
-        }
-
-    cout << endl;
+        // cout << Cr.size() << endl;
+        // cout << m1[n] << endl;
 
     }
 
+    //  //print size of Cr for each j 
+
+    // for(int j = 0; j < N; j++)
+    // {
+    //     cout << Cr[j] << endl;
+    // } 
+
+    for (int j = 0; j < N; j++)
+    {
+        Cr[j] /= Nbins;
+        // std::cout << Cr[j].real() << endl;
+    }
 
 
+    //compute average magnetic moments for each experiment 
+    //wha we have, are magnetic moments of each site, for each individual experiment. 
+    //now, we want to average over these magnetic moments for each site, and basically obtain 
+    //the average magnetic moments for each experiment.
+    //doing this for many experiments will let us compute the statistics, such as standard deviations from
+    //each experiment etc.
+    //basically, u will get the zeroth, first, second and forth magnetic moments for each temperature that 
+    //u run this programme for 
+    //and this will be computed for as many experiments as u wish - here, we choose Nbins = 10, so 10 exps!
+
+    double m_avg = 0.0;
+    double m1_avg = 0.0;
+    double m2_avg = 0.0;
+    double m4_avg = 0.0;
+
+    // here, we sum over the magnetic moments at each site to get a running total
+    for (int n = 0; n < Nbins; n++) 
+    {
+        m_avg += m[n].real();
+        m1_avg += m1[n];
+        m2_avg += m2[n];
+        m4_avg += m4[n];
+    }
+
+    //and here, we normalise it - so, we obtain one value for a magnetic moment per experiment!
+    m_avg /= Nbins;
+    m1_avg /= Nbins;
+    m2_avg /= Nbins;
+    m4_avg /= Nbins;
+
+    // cout << m1_avg << endl;
+
+    // ofstream file("correlation_0.25.txt");
+
+    //     if (file.is_open()) {
+    //     // Write vector values to the file
+
+    //     for (int j = 0; j < N; j++)
+    //     {
+    //         file << Cr[j].real() << " ";
+    //     }
+
+    //     // Close the file
+    //     file.close();
+
+    //     cout << "Vector values saved to file successfully." << endl;
+    // } else {
+    //     cerr << "Failed to open file for writing." << endl;
+    // }
+
+
+    //not ready yet 
+
+    // ofstream file("magnetic_moments.txt");
+
+    //     if (file.is_open()) {
+    //     // Write vector values to the file
+
+    //     for (int j = 0; j < N; j++)
+    //     {
+    //         file << Cr[j].real() << " ";
+    //     }
+
+    //     // Close the file
+    //     file.close();
+
+    //     cout << "Magnetic moments saved to file successfully." << endl;
+    // } else {
+    //     cerr << "Failed to open file for writing." << endl;
+    // }
+
+
+    ofstream file("magnetic_moments_T05.txt");
+
+        if (file.is_open()) {
+    //     // Write vector values to the file
+
+        for (int j = 0; j < N; j++)
+        {
+            file << m_avg << " " << m1_avg << " " << m2_avg << " " << m4_avg << "\n";
+        }
+
+        // Close the file
+        file.close();
+
+        cout << "Magnetic moments saved to file successfully." << endl;
+    } else {
+        cerr << "Failed to open file for writing." << endl;
+    }
+
+
+    }
 }
 
 
