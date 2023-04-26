@@ -4,6 +4,8 @@
 #include <fstream>
 #include <math.h>
 #include <complex>
+#include <iomanip>
+
 using namespace std;
 
 #define PI 3.14159265358979323846
@@ -16,7 +18,7 @@ const double T = 0.5; //temperature in units J
 int dim = 1; //dimension of the lattice; 1D chain case
 
 const int N = L; 
-const double pconnect = 1. - exp(-2. / T); //probability of connecting two sites; this expression works because our temperature is in units of J 
+const double pconnect = 1. - exp(-1. / T); //probability of connecting two sites; this expression works because our temperature is in units of J 
 //might need to make a function for connecting probability so that it can be computed for different temperatures 
 
 const int Nclusters = 1; //number of cluster builds in one MC step 
@@ -33,24 +35,33 @@ vector<complex<double>> Cr(N); //order parameter for each site
 
 
 //function to initialize the lattice with the spins 
-enum directions {right, left, up, down}; //1D chain case
-int indx(int x) {return x;}; //make an indx on every site 
-int xpos(int i) {return i%L;}
+enum directions {right, left}; //1D chain case
+// enum directions2D {right, left, up, down}; //2D square lattice case
+// int indx(int x, int y) {return y * L + x;}; //make an indx on every site 
 
-int ypos(int i) {return i / L;}
+
+int indx(int x) {return x;}
+//https://stackoverflow.com/questions/49124741/implement-2d-array-coordinates-in-1d-array-in-c 
+//the source above explains the intuition behind converting 2D lattice coordinates to 1D array 
+int xpos(int i) {return i%L;}
+// int ypos(int i) {return i / L;}
 
 int Nbr(int i, int dir)
 {
     int x = xpos(i);
-    int y = ypos(i);
+    // int y = ypos(i);
 
     switch(dir)
     {
-        case ::right: return indx((x+1)%L); //return index of the right neighbour 
-        case ::left: return indx((x-1+L)%L); //return index of the left neighbour
-        case ::up: return indx(x, (y+1)%L);
-        case ::down: return indx(i, (y-1 + L)%L);
-        default: return -1; //if the direction is not right or left, return -1
+        // case ::right: return indx((x + 1)%L, y); //return index of the right neighbour 
+        // case ::left: return indx((x - 1 + L)%L, y); //return index of the left neighbour
+        // case ::up: return indx(x, (y + 1)%L);
+        // case ::down: return indx(x, (y - 1 + L)%L);
+
+        case ::right: return indx((x + 1)%L); //return index of the right neighbour
+        case ::left: return indx((x - 1 + L)%L); //return index of the left neighbour
+        default: return -1; //if the direct ion is not right or left, return -1
+    
     }
 
 }
@@ -203,6 +214,23 @@ int main()
         // std::cout << Cr[j].real() << endl;
     }
 
+    ofstream file("correlation_0.25.txt");
+
+        if (file.is_open()) {
+        // Write vector values to the file
+
+        for (int j = 0; j < N; j++)
+        {
+            file << Cr[j].real() << " ";
+        }
+
+        // Close the file
+        file.close();
+
+        cout << "Vector values saved to file successfully." << endl;
+    } else {
+        cerr << "Failed to open file for writing." << endl;
+    }
 
     //compute average magnetic moments for each experiment 
     //wha we have, are magnetic moments of each site, for each individual experiment. 
@@ -236,28 +264,10 @@ int main()
 
     // cout << m1_avg << endl;
 
-    // ofstream file("correlation_0.25.txt");
-
-    //     if (file.is_open()) {
-    //     // Write vector values to the file
-
-    //     for (int j = 0; j < N; j++)
-    //     {
-    //         file << Cr[j].real() << " ";
-    //     }
-
-    //     // Close the file
-    //     file.close();
-
-    //     cout << "Vector values saved to file successfully." << endl;
-    // } else {
-    //     cerr << "Failed to open file for writing." << endl;
-    // }
-
 
     //not ready yet 
 
-    // ofstream file("magnetic_moments.txt");
+    // ofstream file("correlation_0.5.txt");
 
     //     if (file.is_open()) {
     //     // Write vector values to the file
@@ -275,25 +285,27 @@ int main()
     //     cerr << "Failed to open file for writing." << endl;
     // }
 
+    //use temperature to name the file 
+    // ofstream file("magnetic_moments_T15.txt");
+    // ostringstream oss; // Create ostringstream object
+    // oss << fixed << std::setprecision(2) << T; // Set precision to 1 and convert float to string
+    // ofstream file("magnetic_moments_L" + to_string(L) + "_T"  + to_string(T) + ".txt");
 
-    ofstream file("magnetic_moments_T05.txt");
+    //     if (file.is_open()) {
+    // //     // Write vector values to the file
 
-        if (file.is_open()) {
-    //     // Write vector values to the file
+    //     for (int j = 0; j < N; j++)
+    //     {
+    //         file << m_avg << " " << m1_avg << " " << m2_avg << " " << m4_avg << "\n";
+    //     }
 
-        for (int j = 0; j < N; j++)
-        {
-            file << m_avg << " " << m1_avg << " " << m2_avg << " " << m4_avg << "\n";
-        }
+    //     // Close the file
+    //     file.close();
 
-        // Close the file
-        file.close();
-
-        cout << "Magnetic moments saved to file successfully." << endl;
-    } else {
-        cerr << "Failed to open file for writing." << endl;
-    }
-
+    //     cout << "Magnetic moments saved to file successfully." << endl;
+    // } else {
+    //     cerr << "Failed to open file for writing." << endl;
+    // }
 
     }
 }
